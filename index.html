@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8">
+
+		<title>fhir2fhir by niquola</title>
+
+		<meta name="description" content="exetend k8s">
+		<meta name="author" content="Nikoai Ryzhikov">
+
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<link rel="stylesheet" href="css/reveal.css">
+		<!-- <link rel="stylesheet" href="css/theme/black.css" id="theme"> -->
+		<link rel="stylesheet" href="css/theme/white.css" id="theme">
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+    <style>
+     .reveal section img { background: white !important; border: none !important; box-shadow: none;}
+     .reveal section hr { border-color: #ddd; border-top: none; } 
+     .reveal section h1,
+     .reveal section h3,
+     .reveal section h2 {color: #e94b35 !important; }
+
+.reveal pre code {
+  background: black;
+  overflow: hidden;
+  max-height: 500px;
+  padding: 30px 30px 50px;
+}
+      </style>
+
+		<!--[if lt IE 9]>
+		<script src="lib/js/html5shiv.js"></script>
+		<![endif]-->
+	</head>
+
+	<body>
+
+		<div class="reveal">
+			<div class="slides">
+
+<section data-markdown><script type="text/template">
+
+## System integration
+## with FHIR
+
+----
+
+fhir dev days 2017
+</script></section>
+
+<section>
+  <h3>Nikolai Ryzhikov</h3>
+  <hr/>
+  <p>CTO of health-samurai.io</p>
+  <a href="http://github.com/niquola">
+    niquola
+    <i class="fa fa-github"></i>
+    <a href="http://twitter.com/niquola">
+      <i class="fa fa-twitter"></i>
+    </a>
+    <a href="https://plus.google.com/u/0/+%D0%9D%D0%B8%D0%BA%D0%BE%D0%BB%D0%B0%D0%B9%D0%A0%D1%8B%D0%B6%D0%B8%D0%BA%D0%BE%D0%B2">
+      <i class="fa fa-google-plus"></i>
+    </a> <a href="https://www.facebook.com/nicola.ryzhikov">
+      <i class="fa fa-facebook"></i>
+    </a>
+    </p>
+    <!-- <img src="niquola.jpeg" style="border:none; box-shado: none; background: transparent;"/> -->
+</section>
+
+
+<section data-markdown><script type="text/template">
+## FHIR 
+
+----
+
+Is essentially REST API
+</script></section>
+
+<section data-markdown><script type="text/template">
+### REST is a Client/Server architecture
+
+----
+
+```
+
+Client | -(request)->  | Server
+       | <-(response)- |
+```
+
+short-living sessions,
+server is the only source of truth.
+Good for UI/Mobile & other add-hock clients
+
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+### Interoperability
+
+----
+
+* Distributed system
+* System to System integration
+
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+
+How can we integrate systems using FHIR?
+
+----
+
+* History API?
+* Subscriptions?
+* Polling REST API & diffing?
+
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+
+### Change detection API!
+### State propagation
+
+----
+
+```
+
+System[A] -(changes/events)-> System[B]
+
+```
+
+---
+
+subscriptions is a only part of the problem
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+
+### Databases/Distrubuted Systems
+
+----
+
+Append only log (transaction log) of all changes
+
+----
+
+* Event Sourcing
+* PostgreSQL logica replication
+* Kafka API
+* ...
+
+
+
+</script></section>
+
+
+<section data-markdown><script type="text/template">
+
+### Change detection
+
+----
+
+```
+
+                                   / -> subscriber
+Clients -> System -> Changes Feed | ->  subscriber
+                                   \ -> subscriber
+
+```
+
+</script></section>
+
+
+<section data-markdown><script type="text/template">
+
+* take snapshot (base backup)
+* subscribe for changes
+* replay changes from master
+
+</script></section>
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+
+### Do we have transaction log in FHIR?
+
+---
+
+* Bundle as a base backup?
+* History as tx log?
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+
+### FHIR transaction log
+
+---
+
+```
+GET /transaction
+
+{resourceType: "Bundle", type: "transaction", .....}
+{resourceType: "Bundle", type: "transaction", .....}
+{resourceType: "Bundle", type: "transaction", .....}
+{resourceType: "Bundle", type: "transaction", .....}
+{resourceType: "Bundle", type: "transaction", .....}
+....
+
+```
+----
+
+possibly including
+what specifically was changed
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+
+### Transport layer is secondary
+
+---
+
+* Long polling REST
+* Web Sockets
+* Kafka
+* Messaging aka HL7v2
+
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+
+### in aidbox
+
+* Each changing state operation is a transaction
+* simple counter for transaction id (tx id)
+* use tx id as global version id
+
+---
+
+```
+# get all changes from version 5
+
+GET /transaction/?versionId=5
+
+# get data with max txid=10
+
+GET /transaction/?versionId=10
+
+# resubscribe for other changes
+```
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+
+#### Tx log as foundation
+#### for Subscriptions
+
+----
+
+```
+
+System
+ -> changes feed
+   -> filter/process
+     -> notify subscribers
+
+```
+
+</script></section>
+
+<section data-markdown><script type="text/template">
+
+### Reactive Search API
+
+----
+
+```
+GET SomeResource?_watch=true&search=params.....
+
+```
+----
+
+1. notify about changes
+1. send what was changed
+</script></section>
+
+
+<section data-markdown><script type="text/template">
+
+### Complex Reactive Search API
+
+---
+
+We use tx log to detect possible
+changes and just re-run search query
+
+</script></section>
+
+
+</div> </div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.js"></script>
+
+		<script>
+
+			// More info https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+				// More info https://github.com/hakimel/reveal.js#dependencies
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true }
+				]
+			});
+
+		</script>
+
+	</body>
+</html>
